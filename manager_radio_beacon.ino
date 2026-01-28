@@ -87,7 +87,7 @@ void loop() {
       tableInput = 0;
       lcd.clear();
       lcd.setCursor(0,0);
-      lcd.print("Enter table (0-63):");
+      lcd.print("Enter TableID:");
       lcd.setCursor(0,1);
       lcd.print(tableInput);
     }
@@ -122,6 +122,11 @@ void loop() {
       lcd.print("                ");
       lcd.setCursor(0,1);
       lcd.print(tableInput);
+    }
+    else if (key == 'B') { // возврат в режим показа статуса
+      tableInput = 0;
+      inputMode = false;
+      showCurrentTask();
     }
   }
 
