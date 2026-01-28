@@ -25,7 +25,6 @@ const int route2Length = sizeof(routeToTable2)/sizeof(routeToTable2[0]);
 String routeBackFromTable2[route2Length + 1];
 // -------------------------------МАРШРУТЫ-------------------------------
 
-
 #define queueSize 128
 unsigned int taskQueue[queueSize];
 int pointer_completed = 0;
