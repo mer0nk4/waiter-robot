@@ -65,7 +65,9 @@ void receiveTasks() {
       }
       else if (packet == 0b1100000000) {
         currentTask = "Robot stuck!";
-        tone(BUZZER_PIN, 1000, 500); // 1000Гц, 500 мс
+        digitalWrite(BUZZER_PIN, 1);
+        delay(1000);
+        digitalWrite(BUZZER_PIN, 0);
       }
 
       lastTime = now;
@@ -109,6 +111,9 @@ void loop() {
       byte taskId = 1;
       byte packet = 0b01 << 8 | (tableInput << 2) | taskId;
       Transmitter.send(packet, 10);
+      digitalWrite(BUZZER_PIN, 1);
+      delay(500);
+      digitalWrite(BUZZER_PIN, 0);
       lcd.clear();
       lcd.setCursor(0,0);
       lcd.print("Task sent!");
