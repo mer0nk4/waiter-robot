@@ -30,7 +30,7 @@ unsigned int taskQueue[queueSize];
 int pointer_completed = 0;
 int pointer_received = 0;
 unsigned int currentTask = 0;
-unsigned int statusPacket = 0;
+unsigned long statusPacket = 0;
 unsigned int lastCompletedTask = 0;
 static unsigned long lastTime = 0;
 
@@ -46,7 +46,7 @@ void setup() {
   pinMode(lineSensorPin, INPUT);
   Serial.begin(9600);
 
-  Receiver.enableReceive(digitalPinToInterrupt(0));
+  Receiver.enableReceive(2);
   Transmitter.enableTransmit(9);
   Transmitter.setProtocol(1);
   Transmitter.setPulseLength(350);
@@ -68,17 +68,17 @@ void loop() {
       byte tableId = (currentTask >> 2) & 0b111111;   // 6 бит = номер стола
       byte taskId  = currentTask & 0b11;             // последние 2 бита = задача
 
-      if (typeId == 0b01) { // команда менеджера
+      if (typeId == 0b01) { // команда
 
         if (tableId == 1 && taskId == 1) {
-          unsigned int statusPacket = (0b10 << 8) | (tableId << 2) | taskId; // отправка статуса менеджеру
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId; // отправка статуса менеджеру
           Transmitter.send(statusPacket, 10);
           table1_task1();
           lastCompletedTask = currentTask;
         }
 
         if (tableId == 2 && taskId == 1) {
-          unsigned int statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
           Transmitter.send(statusPacket, 10);
           table2_task1();
           lastCompletedTask = currentTask;
@@ -95,11 +95,12 @@ void receiveTasks() {
     unsigned long now = millis();
 
     if (now - lastTime > 300) {
-      unsigned int packet = Receiver.getReceivedValue();
+      unsigned long packet = Receiver.getReceivedValue();
       
       byte typeId = (packet >> 8) & 0b11; // фильтруем только команды
       if (typeId == 0b01) {
         addTask(packet);
+        Serial.println(packet);
       }
 
       lastTime = now;
