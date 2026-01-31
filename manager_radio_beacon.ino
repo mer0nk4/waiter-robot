@@ -22,7 +22,6 @@ byte rowPins[ROWS] = {10,9,8,7};
 byte colPins[COLS] = {6,5,4,3};
 Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
 
-unsigned long lastTime = 0;
 String currentTask = "None";
 bool inputMode = false;
 byte tableInput = 0;
@@ -40,6 +39,7 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
 
   showCurrentTask();
+  Serial.begin(9600);
 }
 
 void showCurrentTask() {
@@ -52,26 +52,24 @@ void showCurrentTask() {
 
 void receiveTasks() {
   if (Receiver.available()) {
-    unsigned long now = millis();
+    unsigned long packet = Receiver.getReceivedValue();
 
-    if (now - lastTime > 300) {
-      unsigned int packet = Receiver.getReceivedValue();
-
-      byte typeId = (packet >> 8) & 0b11;
-      if (typeId == 0b10) {
-        byte tableId = (packet >> 2) & 0b111111;
-        byte taskId  = packet & 0b00000011;
-        currentTask = "T" + String(taskId) + " -> Table " + String(tableId);
-      }
-      else if (packet == 0b1100000000) {
-        currentTask = "Robot stuck!";
-        digitalWrite(BUZZER_PIN, 1);
-        delay(1000);
-        digitalWrite(BUZZER_PIN, 0);
-      }
-
-      lastTime = now;
+    byte typeId = (packet >> 8) & 0b11;
+    if (typeId == 0b10) {
+      byte tableId = (packet >> 2) & 0b111111;
+      byte taskId  = packet & 0b11;
+      Serial.println(packet);
+      currentTask = String("T") + String(taskId) + " -> Table " + String(tableId);
+      showCurrentTask();
     }
+    else if (packet == 0b11000000) {
+      currentTask = "Robot stuck!";
+      digitalWrite(BUZZER_PIN, 1);
+      delay(1000);
+      digitalWrite(BUZZER_PIN, 0);
+      showCurrentTask();
+    }
+
     Receiver.resetAvailable();
   }
 }
@@ -109,7 +107,7 @@ void loop() {
     }
     else if (key == '#') { // подтверждение
       byte taskId = 1;
-      byte packet = 0b01 << 8 | (tableInput << 2) | taskId;
+      unsigned long packet = ((unsigned long)0b01 << 8) | ((unsigned long)tableInput << 2) | taskId;
       Transmitter.send(packet, 10);
       digitalWrite(BUZZER_PIN, 1);
       delay(500);
