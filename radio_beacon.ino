@@ -14,11 +14,11 @@ void setup() {
 }
 
 void loop() {
-  byte typeId = 0b01
-  byte tableId = 1;
+  byte typeId = 0b01;
+  byte tableId = 2;
   if (digitalRead(BUTTON_PIN) == LOW) {
-    byte taskId  = 1;
-    byte packet = (typeId << 8) | (tableId << 2) | taskId;
+    byte taskId  = 2;
+    unsigned long packet = (typeId << 8) | (tableId << 2) | taskId;
     Transmitter.send(packet, 10);
     delay(200);
   }
