@@ -10,17 +10,20 @@
 #define trigPin 11
 #define echoPin 10
 #define lineSensorPin 8
+#define RledPin 1
+#define GledPin 12
+#define BledPin 13
 
 RCSwitch Receiver;
 RCSwitch Transmitter;
 Ultrasonic ultrasonic(trigPin, echoPin);
 
 // -------------------------------МАРШРУТЫ-------------------------------
-String routeToTable1[] = {"r180", "f100", "l90", "f50"};
+String routeToTable1[] = {"f200"};
 const int route1Length = sizeof(routeToTable1)/sizeof(routeToTable1[0]);
 String routeBackFromTable1[route1Length + 1];
 
-String routeToTable2[] = {"r180", "f50"};
+String routeToTable2[] = {"r180", "l180", "r90", "l90"};
 const int route2Length = sizeof(routeToTable2)/sizeof(routeToTable2[0]);
 String routeBackFromTable2[route2Length + 1];
 // -------------------------------МАРШРУТЫ-------------------------------
@@ -44,6 +47,9 @@ void setup() {
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   pinMode(lineSensorPin, INPUT);
+  pinMode(RledPin, OUTPUT);
+  pinMode(GledPin, OUTPUT);
+  pinMode(BledPin, OUTPUT);
   Serial.begin(9600);
 
   Receiver.enableReceive(2);
@@ -88,6 +94,11 @@ void loop() {
       }
     }
   }
+  else {
+    digitalWrite(RledPin, LOW);
+    digitalWrite(GledPin, HIGH);
+    digitalWrite(BledPin, LOW);
+  }
 }
 
 void receiveTasks() {
@@ -109,14 +120,20 @@ void receiveTasks() {
   }
 }
 
-// HIGH - отсутствие подноса, LOW - поднос есть
+// HIGH - поднос есть, LOW - отсутствие подноса
 void waitForTrayState(int state) {
-  while (digitalRead(lineSensorPin) != state) {
+  digitalWrite(RledPin, HIGH);
+  digitalWrite(GledPin, HIGH);
+  digitalWrite(BledPin, HIGH);
+  while (digitalRead(lineSensorPin) == state) {
     receiveTasks();
     delay(100);
   }
 
   unsigned long start = millis();
+  digitalWrite(RledPin, LOW);
+  digitalWrite(GledPin, LOW);
+  digitalWrite(BledPin, HIGH);
   while (millis() - start < 5000) {
     receiveTasks();
     delay(100);
@@ -142,17 +159,25 @@ void forward(int targetDistance) {
         delay(100);
 
         if (!signalSent && millis() - waitStart >= 7000) {
+          digitalWrite(RledPin, HIGH);
+          digitalWrite(GledPin, LOW);
+          digitalWrite(BledPin, LOW);
           Transmitter.send((0b11 << 8), 10);  // первые 2 бита "11" = препятствие
           signalSent = true;
         }
       }
-      if (signalSent) Transmitter.send(statusPacket, 10);
+      if (signalSent) {
+        Transmitter.send(statusPacket, 10);
+        digitalWrite(RledPin, LOW);
+        digitalWrite(GledPin, LOW);
+        digitalWrite(BledPin, HIGH);
+      }
       start();
     }
 
     analogWrite(ENA, 255);
     analogWrite(ENB, 255);
-    distanceComplete += 6; // шаг примерно 6 см
+    distanceComplete += 10; // шаг примерно 10 см
     delay(50);
   }
 
@@ -175,15 +200,28 @@ void rotate_left(int angle) {
   stop();
 }
 
-void stop() {
-  digitalWrite(rf, 1); digitalWrite(lf, 1);
-  digitalWrite(rb, 0); digitalWrite(lb, 0);
-  analogWrite(ENA, 0); analogWrite(ENB, 0);
-}
-
 void start() {
   digitalWrite(rf, 1); digitalWrite(lf, 1);
   digitalWrite(rb, 0); digitalWrite(lb, 0);
+
+  for (int currentSpeed = 0; currentSpeed <= 255; currentSpeed += 5) {
+    receiveTasks();
+    analogWrite(ENA, currentSpeed);
+    analogWrite(ENB, currentSpeed);
+    delay(10);
+  }
+}
+
+void stop() {
+  digitalWrite(rf, 1); digitalWrite(lf, 1);
+  digitalWrite(rb, 0); digitalWrite(lb, 0);
+
+  for (int currentSpeed = 255; currentSpeed >= 0; currentSpeed -= 5) {
+    receiveTasks();
+    analogWrite(ENA, currentSpeed);
+    analogWrite(ENB, currentSpeed);
+    delay(10);
+  }
 }
 
 void table1_task1() {
