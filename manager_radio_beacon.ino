@@ -1,137 +1,279 @@
-#include <RCSwitch.h>
-#include <LiquidCrystal_I2C.h>
-#include <Keypad.h>
+#include <RCSwitch.h> 
+#include <Ultrasonic.h>
 
-#define TRANSMIT_PIN 12
-#define BUZZER_PIN 11
-RCSwitch Transmitter = RCSwitch();
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+#define rf 2 // right forward
+#define rb 4 // right back
+#define lf 6 // left forward
+#define lb 7 // left back
+#define ENA 5
+#define ENB 3
+#define trigPin 11
+#define echoPin 10
+#define lineSensorPin 8
+#define RledPin 1
+#define GledPin 12
+#define BledPin 13
 
-RCSwitch Receiver = RCSwitch();
+RCSwitch Receiver;
+RCSwitch Transmitter;
+Ultrasonic ultrasonic(trigPin, echoPin);
 
+// -------------------------------МАРШРУТЫ-------------------------------
+String routeToTable1[] = {"f200"};
+const int route1Length = sizeof(routeToTable1)/sizeof(routeToTable1[0]);
+String routeBackFromTable1[route1Length + 1];
 
-const byte ROWS = 4;
-const byte COLS = 4;
-char keys[ROWS][COLS] = {
-  {'1','2','3','A'},
-  {'4','5','6','B'},
-  {'7','8','9','C'},
-  {'*','0','#','D'}
-};
-byte rowPins[ROWS] = {10,9,8,7};
-byte colPins[COLS] = {6,5,4,3};
-Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
+String routeToTable2[] = {"r180", "l180", "r90", "l90"};
+const int route2Length = sizeof(routeToTable2)/sizeof(routeToTable2[0]);
+String routeBackFromTable2[route2Length + 1];
+// -------------------------------МАРШРУТЫ-------------------------------
 
-String currentTask = "None";
-bool inputMode = false;
-byte tableInput = 0;
+#define queueSize 128
+unsigned int taskQueue[queueSize];
+int pointer_completed = 0;
+int pointer_received = 0;
+unsigned int currentTask = 0;
+unsigned long statusPacket = 0;
+unsigned int lastCompletedTask = 0;
+static unsigned long lastTime = 0;
 
 void setup() {
-  lcd.init();
-  lcd.backlight();
+  pinMode(lf, OUTPUT);
+  pinMode(lb, OUTPUT);
+  pinMode(rf, OUTPUT);
+  pinMode(rb, OUTPUT);
+  pinMode(ENA, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(lineSensorPin, INPUT);
+  pinMode(RledPin, OUTPUT);
+  pinMode(GledPin, OUTPUT);
+  pinMode(BledPin, OUTPUT);
+  Serial.begin(9600);
 
-  Transmitter.enableTransmit(TRANSMIT_PIN);
+  Receiver.enableReceive(2);
+  Transmitter.enableTransmit(9);
   Transmitter.setProtocol(1);
   Transmitter.setPulseLength(350);
-  Transmitter.setRepeatTransmit(10);
-  Receiver.enableReceive(digitalPinToInterrupt(2));
+  Transmitter.setRepeatTransmit(5);
 
-  pinMode(BUZZER_PIN, OUTPUT);
-
-  showCurrentTask();
-  Serial.begin(9600);
+  toBase(routeToTable1, routeBackFromTable1, route1Length);
+  toBase(routeToTable2, routeBackFromTable2, route2Length);
 }
-
-void showCurrentTask() {
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Current Task:");
-  lcd.setCursor(0,1);
-  lcd.print(currentTask);
-}
-
-void receiveTasks() {
-  if (Receiver.available()) {
-    unsigned long packet = Receiver.getReceivedValue();
-
-    byte typeId = (packet >> 8) & 0b11;
-    if (typeId == 0b10) {
-      byte tableId = (packet >> 2) & 0b111111;
-      byte taskId  = packet & 0b11;
-      Serial.println(packet);
-      currentTask = String("T") + String(taskId) + " -> Table " + String(tableId);
-      showCurrentTask();
-    }
-    else if (packet == 0b11000000) {
-      currentTask = "Robot stuck!";
-      digitalWrite(BUZZER_PIN, 1);
-      delay(1000);
-      digitalWrite(BUZZER_PIN, 0);
-      showCurrentTask();
-    }
-
-    Receiver.resetAvailable();
-  }
-}
-
 
 void loop() {
   receiveTasks();
 
-  char key = keypad.getKey();
+  if (!queueEmpty()) {
+    currentTask = getNextTask();
 
-  if (!inputMode) { // обычный режим — кнопка A для начала ввода
-    
-    if (key == 'A') {
-      inputMode = true;
-      tableInput = 0;
-      lcd.clear();
-      lcd.setCursor(0,0);
-      lcd.print("Enter TableID:");
-      lcd.setCursor(0,1);
-      lcd.print(tableInput);
-    }
-  }
-  else { // режим ввода номера стола
+    if (currentTask != lastCompletedTask) {
 
-    if (key >= '0' && key <= '9') {
-      byte digit = key - '0';
-      byte newValue = tableInput * 10 + digit;
-      if (newValue <= 63) {
-        tableInput = newValue;
-        lcd.setCursor(0,1);
-        lcd.print("                ");
-        lcd.setCursor(0,1);
-        lcd.print(tableInput);
+      byte typeId  = (currentTask >> 8) & 0b11;       // первые 2 бита = тип пакета
+      byte tableId = (currentTask >> 2) & 0b111111;   // 6 бит = номер стола
+      byte taskId  = currentTask & 0b11;             // последние 2 бита = задача
+
+      if (typeId == 0b01) { // команда
+
+        if (tableId == 1 && taskId == 1) {
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId; // отправка статуса менеджеру
+          Transmitter.send(statusPacket, 10);
+          table1_task1();
+          lastCompletedTask = currentTask;
+        }
+
+        if (tableId == 2 && taskId == 1) {
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
+          Transmitter.send(statusPacket, 10);
+          table2_task1();
+          lastCompletedTask = currentTask;
+        }
+
+        // и так далее по шаблону
       }
     }
-    else if (key == '#') { // подтверждение
-      byte taskId = 1;
-      unsigned long packet = ((unsigned long)0b01 << 8) | ((unsigned long)tableInput << 2) | taskId;
-      Transmitter.send(packet, 10);
-      digitalWrite(BUZZER_PIN, 1);
-      delay(500);
-      digitalWrite(BUZZER_PIN, 0);
-      lcd.clear();
-      lcd.setCursor(0,0);
-      lcd.print("Task sent!");
-      delay(1000);
-      inputMode = false;
-      showCurrentTask();
+  }
+  else {
+    digitalWrite(RledPin, LOW);
+    digitalWrite(GledPin, HIGH);
+    digitalWrite(BledPin, LOW);
+  }
+}
+
+void receiveTasks() {
+  if (Receiver.available()) {
+    unsigned long now = millis();
+
+    if (now - lastTime > 300) {
+      unsigned long packet = Receiver.getReceivedValue();
+      
+      byte typeId = (packet >> 8) & 0b11; // фильтруем только команды
+      if (typeId == 0b01) {
+        addTask(packet);
+        Serial.println(packet);
+      }
+
+      lastTime = now;
     }
-    else if (key == '*') { // сброс ввода
-      tableInput = 0;
-      lcd.setCursor(0,1);
-      lcd.print("                ");
-      lcd.setCursor(0,1);
-      lcd.print(tableInput);
-    }
-    else if (key == 'B') { // возврат в режим показа статуса
-      tableInput = 0;
-      inputMode = false;
-      showCurrentTask();
-    }
+    Receiver.resetAvailable();
+  }
+}
+
+// HIGH - поднос есть, LOW - отсутствие подноса
+void waitForTrayState(int state) {
+  digitalWrite(RledPin, HIGH);
+  digitalWrite(GledPin, HIGH);
+  digitalWrite(BledPin, HIGH);
+  while (digitalRead(lineSensorPin) == state) {
+    receiveTasks();
+    delay(100);
   }
 
-  delay(50);
+  unsigned long start = millis();
+  digitalWrite(RledPin, LOW);
+  digitalWrite(GledPin, LOW);
+  digitalWrite(BledPin, HIGH);
+  while (millis() - start < 5000) {
+    receiveTasks();
+    delay(100);
+  }
+}
+
+void forward(int targetDistance) {
+  int distanceComplete = 0;
+  start();
+
+  while (distanceComplete < targetDistance) {
+    receiveTasks();
+    long dist = ultrasonic.read();
+
+    if (dist > 0 && dist < 30) {
+      stop();
+
+      unsigned long waitStart = millis();
+      bool signalSent = false;
+
+      while (ultrasonic.read() < 30) {
+        receiveTasks();
+        delay(100);
+
+        if (!signalSent && millis() - waitStart >= 7000) {
+          digitalWrite(RledPin, HIGH);
+          digitalWrite(GledPin, LOW);
+          digitalWrite(BledPin, LOW);
+          Transmitter.send((0b11 << 8), 10);  // первые 2 бита "11" = препятствие
+          signalSent = true;
+        }
+      }
+      if (signalSent) {
+        Transmitter.send(statusPacket, 10);
+        digitalWrite(RledPin, LOW);
+        digitalWrite(GledPin, LOW);
+        digitalWrite(BledPin, HIGH);
+      }
+      start();
+    }
+
+    analogWrite(ENA, 255);
+    analogWrite(ENB, 255);
+    distanceComplete += 10; // шаг примерно 10 см
+    delay(50);
+  }
+
+  stop();
+}
+
+void rotate_right(int angle) {
+  digitalWrite(rf, 0); digitalWrite(lf, 1);
+  digitalWrite(rb, 1); digitalWrite(lb, 0);
+  analogWrite(ENA, 255); analogWrite(ENB, 255);
+  delay(4.6 * angle);
+  stop();
+}
+
+void rotate_left(int angle) {
+  digitalWrite(rf, 1); digitalWrite(lf, 0);
+  digitalWrite(rb, 0); digitalWrite(lb, 1);
+  analogWrite(ENA, 255); analogWrite(ENB, 255);
+  delay(4.6 * angle);
+  stop();
+}
+
+void start() {
+  digitalWrite(rf, 1); digitalWrite(lf, 1);
+  digitalWrite(rb, 0); digitalWrite(lb, 0);
+
+  for (int currentSpeed = 0; currentSpeed <= 255; currentSpeed += 5) {
+    receiveTasks();
+    analogWrite(ENA, currentSpeed);
+    analogWrite(ENB, currentSpeed);
+    delay(10);
+  }
+}
+
+void stop() {
+  digitalWrite(rf, 1); digitalWrite(lf, 1);
+  digitalWrite(rb, 0); digitalWrite(lb, 0);
+
+  for (int currentSpeed = 255; currentSpeed >= 0; currentSpeed -= 5) {
+    receiveTasks();
+    analogWrite(ENA, currentSpeed);
+    analogWrite(ENB, currentSpeed);
+    delay(10);
+  }
+}
+
+void table1_task1() {
+  waitForTrayState(LOW);
+  followRoute(routeToTable1, route1Length);
+  waitForTrayState(HIGH);
+  followRoute(routeBackFromTable1, route1Length + 1);
+}
+
+void table2_task1() {
+  waitForTrayState(LOW);
+  followRoute(routeToTable2, route2Length);
+  waitForTrayState(HIGH);
+  followRoute(routeBackFromTable2, route2Length + 1);
+}
+
+void followRoute(String route[], int length) {
+  for (int i = 0; i < length; i++) {
+    receiveTasks();
+    char a = route[i][0];
+    int v = route[i].substring(1).toInt();
+    if (a == 'f') forward(v);
+    if (a == 'r') rotate_right(v);
+    if (a == 'l') rotate_left(v);
+    delay(200);
+  }
+}
+
+// формируем маршрут обратно
+void toBase(String original[], String reversed[], int length) {
+  reversed[0] = "r180";
+  for (int i = 0; i < length; i++) {
+    String cmd = original[length - 1 - i];
+    char a = cmd[0];
+    int v = cmd.substring(1).toInt();
+    if (a == 'f') reversed[i + 1] = "f" + String(v);
+    if (a == 'r') reversed[i + 1] = "l" + String(v);
+    if (a == 'l') reversed[i + 1] = "r" + String(v);
+  }
+}
+
+void addTask(unsigned int packet) {
+  taskQueue[pointer_received] = packet;
+  pointer_received = (pointer_received + 1) % queueSize;
+}
+
+bool queueEmpty() {
+  return pointer_completed == pointer_received;
+}
+
+unsigned int getNextTask() {
+  unsigned int t = taskQueue[pointer_completed];
+  pointer_completed = (pointer_completed + 1) % queueSize;
+  return t;
 }
