@@ -23,9 +23,13 @@ String routeToTable1[] = {"f200"};
 const int route1Length = sizeof(routeToTable1)/sizeof(routeToTable1[0]);
 String routeBackFromTable1[route1Length + 1];
 
-String routeToTable2[] = {"r180", "l180", "r90", "l90"};
+String routeToTable2[] = {"r180"};
 const int route2Length = sizeof(routeToTable2)/sizeof(routeToTable2[0]);
 String routeBackFromTable2[route2Length + 1];
+
+String routeToTable3[] = {"r90"};
+const int route3Length = sizeof(routeToTable3)/sizeof(routeToTable3[0]);
+String routeBackFromTable3[route3Length + 1];
 // -------------------------------МАРШРУТЫ-------------------------------
 
 #define queueSize 128
@@ -60,6 +64,7 @@ void setup() {
 
   toBase(routeToTable1, routeBackFromTable1, route1Length);
   toBase(routeToTable2, routeBackFromTable2, route2Length);
+  toBase(routeToTable3, routeBackFromTable3, route3Length);
 }
 
 void loop() {
@@ -78,18 +83,30 @@ void loop() {
 
         if (tableId == 1 && taskId == 1) {
           unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId; // отправка статуса менеджеру
+          delay(150);
           Transmitter.send(statusPacket, 10);
           table1_task1();
           lastCompletedTask = currentTask;
+          Transmitter.send(1000000000, 10);
         }
 
         if (tableId == 2 && taskId == 1) {
           unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
+          delay(150);
           Transmitter.send(statusPacket, 10);
           table2_task1();
           lastCompletedTask = currentTask;
+          Transmitter.send(1000000000, 10);
         }
 
+          if (tableId == 3 && taskId == 1) {
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
+          delay(150);
+          Transmitter.send(statusPacket, 10);
+          table3_task1();
+          lastCompletedTask = currentTask;
+          Transmitter.send(1000000000, 10);
+        }
         // и так далее по шаблону
       }
     }
@@ -177,7 +194,7 @@ void forward(int targetDistance) {
 
     analogWrite(ENA, 255);
     analogWrite(ENB, 255);
-    distanceComplete += 10; // шаг примерно 10 см
+    distanceComplete += 4.4851; // один шаг
     delay(50);
   }
 
@@ -188,16 +205,18 @@ void rotate_right(int angle) {
   digitalWrite(rf, 0); digitalWrite(lf, 1);
   digitalWrite(rb, 1); digitalWrite(lb, 0);
   analogWrite(ENA, 255); analogWrite(ENB, 255);
-  delay(4.6 * angle);
-  stop();
+  delay(8.1 * angle);
+  digitalWrite(rf, 0); digitalWrite(lf, 0);
+  digitalWrite(rb, 0); digitalWrite(lb, 0);
 }
 
 void rotate_left(int angle) {
   digitalWrite(rf, 1); digitalWrite(lf, 0);
   digitalWrite(rb, 0); digitalWrite(lb, 1);
   analogWrite(ENA, 255); analogWrite(ENB, 255);
-  delay(4.6 * angle);
-  stop();
+  delay(8.1 * angle);
+  digitalWrite(rf, 0); digitalWrite(lf, 0);
+  digitalWrite(rb, 0); digitalWrite(lb, 0);
 }
 
 void start() {
@@ -236,6 +255,13 @@ void table2_task1() {
   followRoute(routeToTable2, route2Length);
   waitForTrayState(HIGH);
   followRoute(routeBackFromTable2, route2Length + 1);
+}
+
+void table3_task1() {
+  waitForTrayState(LOW);
+  followRoute(routeToTable3, route3Length);
+  waitForTrayState(HIGH);
+  followRoute(routeBackFromTable3, route3Length + 1);
 }
 
 void followRoute(String route[], int length) {
