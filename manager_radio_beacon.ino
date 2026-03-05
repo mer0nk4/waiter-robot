@@ -9,6 +9,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 RCSwitch Receiver = RCSwitch();
 
+
 const byte ROWS = 4;
 const byte COLS = 4;
 char keys[ROWS][COLS] = {
@@ -53,14 +54,14 @@ void receiveTasks() {
     unsigned long packet = Receiver.getReceivedValue();
 
     byte typeId = (packet >> 8) & 0b11;
-    if (typeId == 0b10) {
+    if (typeId == 0b10 || typeId == 0b01) {
       byte tableId = (packet >> 2) & 0b111111;
       byte taskId  = packet & 0b11;
       Serial.println(packet);
       currentTask = String("T") + String(taskId) + " -> Table " + String(tableId);
       showCurrentTask();
     }
-    else if (packet == 0b11000000) {
+    else if (packet == 0b1100000000) {
       currentTask = "Robot stuck!";
       digitalWrite(BUZZER_PIN, 1);
       delay(1000);
