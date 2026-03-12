@@ -18,7 +18,7 @@ void loop() {
   byte tableId = 2;
   if (digitalRead(BUTTON_PIN) == LOW) {
     byte taskId  = 2;
-    unsigned long packet = (typeId << 8) | (tableId << 2) | taskId;
+    unsigned long packet = ((unsigned long)0b01 << 8) | ((unsigned long)tableId << 2) | taskId;
     Transmitter.send(packet, 10);
     delay(200);
   }
