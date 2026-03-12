@@ -19,17 +19,29 @@ RCSwitch Transmitter;
 Ultrasonic ultrasonic(trigPin, echoPin);
 
 // -------------------------------МАРШРУТЫ-------------------------------
-String routeToTable1[] = {"f200"};
+String routeToTable1[] = {"f211", "l90", "f91"};
 const int route1Length = sizeof(routeToTable1)/sizeof(routeToTable1[0]);
 String routeBackFromTable1[route1Length + 1];
 
-String routeToTable2[] = {"r180"};
+String routeToTable2[] = {"f211", "r90", "f91"};
 const int route2Length = sizeof(routeToTable2)/sizeof(routeToTable2[0]);
 String routeBackFromTable2[route2Length + 1];
 
 String routeToTable3[] = {"r90"};
 const int route3Length = sizeof(routeToTable3)/sizeof(routeToTable3[0]);
 String routeBackFromTable3[route3Length + 1];
+
+String routeToTable4[] = {"f200"};
+const int route4Length = sizeof(routeToTable4)/sizeof(routeToTable4[0]);
+String routeBackFromTable4[route4Length + 1];
+
+String routeToTable5[] = {"r180"};
+const int route5Length = sizeof(routeToTable5)/sizeof(routeToTable5[0]);
+String routeBackFromTable5[route5Length + 1];
+
+String routeToTable6[] = {"r90"};
+const int route6Length = sizeof(routeToTable6)/sizeof(routeToTable6[0]);
+String routeBackFromTable6[route6Length + 1];
 // -------------------------------МАРШРУТЫ-------------------------------
 
 #define queueSize 128
@@ -65,6 +77,9 @@ void setup() {
   toBase(routeToTable1, routeBackFromTable1, route1Length);
   toBase(routeToTable2, routeBackFromTable2, route2Length);
   toBase(routeToTable3, routeBackFromTable3, route3Length);
+  toBase(routeToTable4, routeBackFromTable4, route4Length);
+  toBase(routeToTable5, routeBackFromTable5, route5Length);
+  toBase(routeToTable6, routeBackFromTable6, route6Length);
 }
 
 void loop() {
@@ -90,6 +105,15 @@ void loop() {
           Transmitter.send(1000000000, 10);
         }
 
+        if (tableId == 1 && taskId == 2) {
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId; // отправка статуса менеджеру
+          delay(150);
+          Transmitter.send(statusPacket, 10);
+          table1_task2();
+          lastCompletedTask = currentTask;
+          Transmitter.send(1000000000, 10);
+        }
+
         if (tableId == 2 && taskId == 1) {
           unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
           delay(150);
@@ -99,7 +123,16 @@ void loop() {
           Transmitter.send(1000000000, 10);
         }
 
-          if (tableId == 3 && taskId == 1) {
+        if (tableId == 2 && taskId == 2) {
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId; // отправка статуса менеджеру
+          delay(150);
+          Transmitter.send(statusPacket, 10);
+          table2_task2();
+          lastCompletedTask = currentTask;
+          Transmitter.send(1000000000, 10);
+        }
+
+        if (tableId == 3 && taskId == 1) {
           unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
           delay(150);
           Transmitter.send(statusPacket, 10);
@@ -107,6 +140,34 @@ void loop() {
           lastCompletedTask = currentTask;
           Transmitter.send(1000000000, 10);
         }
+
+        if (tableId == 4 && taskId == 1) {
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
+          delay(150);
+          Transmitter.send(statusPacket, 10);
+          table4_task1();
+          lastCompletedTask = currentTask;
+          Transmitter.send(1000000000, 10);
+        }
+
+        if (tableId == 5 && taskId == 1) {
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
+          delay(150);
+          Transmitter.send(statusPacket, 10);
+          table5_task1();
+          lastCompletedTask = currentTask;
+          Transmitter.send(1000000000, 10);
+        }
+
+        if (tableId == 6 && taskId == 1) {
+          unsigned long statusPacket = (0b10 << 8) | (tableId << 2) | taskId;
+          delay(150);
+          Transmitter.send(statusPacket, 10);
+          table6_task1();
+          lastCompletedTask = currentTask;
+          Transmitter.send(1000000000, 10);
+        }
+
         // и так далее по шаблону
       }
     }
@@ -205,18 +266,20 @@ void rotate_right(int angle) {
   digitalWrite(rf, 0); digitalWrite(lf, 1);
   digitalWrite(rb, 1); digitalWrite(lb, 0);
   analogWrite(ENA, 255); analogWrite(ENB, 255);
-  delay(8.1 * angle);
-  digitalWrite(rf, 0); digitalWrite(lf, 0);
-  digitalWrite(rb, 0); digitalWrite(lb, 0);
+  if (angle < 180) delay(8.2 * angle);
+  else delay(7.02 * angle);
+  digitalWrite(rf, 1); digitalWrite(lf, 1);
+  digitalWrite(rb, 1); digitalWrite(lb, 1);
 }
 
 void rotate_left(int angle) {
   digitalWrite(rf, 1); digitalWrite(lf, 0);
   digitalWrite(rb, 0); digitalWrite(lb, 1);
   analogWrite(ENA, 255); analogWrite(ENB, 255);
-  delay(8.1 * angle);
-  digitalWrite(rf, 0); digitalWrite(lf, 0);
-  digitalWrite(rb, 0); digitalWrite(lb, 0);
+  if (angle < 180) delay(8.2 * angle);
+  else delay(7.02 * angle);
+  digitalWrite(rf, 1); digitalWrite(lf, 1);
+  digitalWrite(rb, 1); digitalWrite(lb, 1);
 }
 
 void start() {
@@ -247,21 +310,54 @@ void table1_task1() {
   waitForTrayState(LOW);
   followRoute(routeToTable1, route1Length);
   waitForTrayState(HIGH);
-  followRoute(routeBackFromTable1, route1Length + 1);
+  followRoute(routeBackFromTable1, route1Length + 2);
+}
+
+void table1_task2() {
+  followRoute(routeToTable1, route1Length);
+  waitForTrayState(HIGH);
+  followRoute(routeBackFromTable1, route1Length + 2);
 }
 
 void table2_task1() {
   waitForTrayState(LOW);
   followRoute(routeToTable2, route2Length);
   waitForTrayState(HIGH);
-  followRoute(routeBackFromTable2, route2Length + 1);
+  followRoute(routeBackFromTable2, route2Length + 2);
+}
+
+void table2_task2() {
+  followRoute(routeToTable2, route2Length);
+  waitForTrayState(HIGH);
+  followRoute(routeBackFromTable2, route2Length + 2);
 }
 
 void table3_task1() {
   waitForTrayState(LOW);
   followRoute(routeToTable3, route3Length);
   waitForTrayState(HIGH);
-  followRoute(routeBackFromTable3, route3Length + 1);
+  followRoute(routeBackFromTable3, route3Length + 2);
+}
+
+void table4_task1() {
+  waitForTrayState(LOW);
+  followRoute(routeToTable4, route4Length);
+  waitForTrayState(HIGH);
+  followRoute(routeBackFromTable4, route4Length + 2);
+}
+
+void table5_task1() {
+  waitForTrayState(LOW);
+  followRoute(routeToTable5, route5Length);
+  waitForTrayState(HIGH);
+  followRoute(routeBackFromTable5, route5Length + 2);
+}
+
+void table6_task1() {
+  waitForTrayState(LOW);
+  followRoute(routeToTable6, route6Length);
+  waitForTrayState(HIGH);
+  followRoute(routeBackFromTable6, route6Length + 2);
 }
 
 void followRoute(String route[], int length) {
@@ -279,6 +375,7 @@ void followRoute(String route[], int length) {
 // формируем маршрут обратно
 void toBase(String original[], String reversed[], int length) {
   reversed[0] = "r180";
+  reversed[length - 1] = "r180";
   for (int i = 0; i < length; i++) {
     String cmd = original[length - 1 - i];
     char a = cmd[0];
