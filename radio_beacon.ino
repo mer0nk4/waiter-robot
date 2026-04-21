@@ -15,7 +15,7 @@ void setup() {
 
 void loop() {
   byte typeId = 0b01;
-  byte tableId = 2;
+  byte tableId = 1;
   if (digitalRead(BUTTON_PIN) == LOW) {
     byte taskId  = 2;
     unsigned long packet = ((unsigned long)0b01 << 8) | ((unsigned long)tableId << 2) | taskId;
