@@ -19,29 +19,29 @@ RCSwitch Transmitter;
 Ultrasonic ultrasonic(trigPin, echoPin);
 
 // -------------------------------МАРШРУТЫ-------------------------------
-String routeToTable1[] = {"f211", "l90", "f91"};
+String routeToTable1[] = {"f190", "l90", "f25"};
 const int route1Length = sizeof(routeToTable1)/sizeof(routeToTable1[0]);
-String routeBackFromTable1[route1Length + 1];
+String routeBackFromTable1[route1Length + 2];
 
-String routeToTable2[] = {"f211", "r90", "f91"};
+String routeToTable2[] = {"f190", "r90", "f25"};
 const int route2Length = sizeof(routeToTable2)/sizeof(routeToTable2[0]);
-String routeBackFromTable2[route2Length + 1];
+String routeBackFromTable2[route2Length + 2];
 
 String routeToTable3[] = {"r90"};
 const int route3Length = sizeof(routeToTable3)/sizeof(routeToTable3[0]);
-String routeBackFromTable3[route3Length + 1];
+String routeBackFromTable3[route3Length + 2];
 
 String routeToTable4[] = {"f200"};
 const int route4Length = sizeof(routeToTable4)/sizeof(routeToTable4[0]);
-String routeBackFromTable4[route4Length + 1];
+String routeBackFromTable4[route4Length + 2];
 
 String routeToTable5[] = {"r180"};
 const int route5Length = sizeof(routeToTable5)/sizeof(routeToTable5[0]);
-String routeBackFromTable5[route5Length + 1];
+String routeBackFromTable5[route5Length + 2];
 
 String routeToTable6[] = {"r90"};
 const int route6Length = sizeof(routeToTable6)/sizeof(routeToTable6[0]);
-String routeBackFromTable6[route6Length + 1];
+String routeBackFromTable6[route6Length + 2];
 // -------------------------------МАРШРУТЫ-------------------------------
 
 #define queueSize 128
@@ -266,8 +266,8 @@ void rotate_right(int angle) {
   digitalWrite(rf, 0); digitalWrite(lf, 1);
   digitalWrite(rb, 1); digitalWrite(lb, 0);
   analogWrite(ENA, 255); analogWrite(ENB, 255);
-  if (angle < 180) delay(8.2 * angle);
-  else delay(7.02 * angle);
+  if (angle < 180) delay(7.7 * angle);
+  else delay(7.0 * angle);
   digitalWrite(rf, 1); digitalWrite(lf, 1);
   digitalWrite(rb, 1); digitalWrite(lb, 1);
 }
@@ -276,8 +276,8 @@ void rotate_left(int angle) {
   digitalWrite(rf, 1); digitalWrite(lf, 0);
   digitalWrite(rb, 0); digitalWrite(lb, 1);
   analogWrite(ENA, 255); analogWrite(ENB, 255);
-  if (angle < 180) delay(8.2 * angle);
-  else delay(7.02 * angle);
+  if (angle < 180) delay(7.8 * angle);
+  else delay(7.1 * angle);
   digitalWrite(rf, 1); digitalWrite(lf, 1);
   digitalWrite(rb, 1); digitalWrite(lb, 1);
 }
@@ -314,8 +314,11 @@ void table1_task1() {
 }
 
 void table1_task2() {
+  digitalWrite(RledPin, LOW);
+  digitalWrite(GledPin, LOW);
+  digitalWrite(BledPin, HIGH);
   followRoute(routeToTable1, route1Length);
-  waitForTrayState(HIGH);
+  waitForTrayState(LOW);
   followRoute(routeBackFromTable1, route1Length + 2);
 }
 
@@ -327,8 +330,11 @@ void table2_task1() {
 }
 
 void table2_task2() {
+  digitalWrite(RledPin, LOW);
+  digitalWrite(GledPin, LOW);
+  digitalWrite(BledPin, HIGH);
   followRoute(routeToTable2, route2Length);
-  waitForTrayState(HIGH);
+  waitForTrayState(LOW);
   followRoute(routeBackFromTable2, route2Length + 2);
 }
 
@@ -375,15 +381,18 @@ void followRoute(String route[], int length) {
 // формируем маршрут обратно
 void toBase(String original[], String reversed[], int length) {
   reversed[0] = "r180";
-  reversed[length - 1] = "r180";
+
   for (int i = 0; i < length; i++) {
     String cmd = original[length - 1 - i];
     char a = cmd[0];
     int v = cmd.substring(1).toInt();
+
     if (a == 'f') reversed[i + 1] = "f" + String(v);
     if (a == 'r') reversed[i + 1] = "l" + String(v);
     if (a == 'l') reversed[i + 1] = "r" + String(v);
   }
+
+  reversed[length + 1] = "r180";
 }
 
 void addTask(unsigned int packet) {
